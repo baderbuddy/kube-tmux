@@ -105,8 +105,19 @@ _kube_tmux_update_cache() {
   done
 }
 
+_kube_config_from_tmux_session() {
+  KUBE_TMUX_CONFIG=""
+  kube_context="$(echo $(tmux showenv $(tmux display-message -p 'KUBECONFIG_#S_#P_#I') 2>/dev/null) | cut -d'=' -f 2)"
+  if [ -e $kube_context ]; then
+    KUBE_TMUX_CONFIG="env KUBECONFIG=$kube_context"
+  fi
+}
+
 _kube_tmux_get_context_ns() {
+  _kube_config_from_tmux_session
+
   # Set the command time
+
   if [[ "${KUBE_TMUX_SHELL}" == "bash" ]]; then
     if ((BASH_VERSINFO[0] >= 4)); then
       KUBE_TMUX_LAST_TIME=$(printf '%(%s)T')
@@ -115,13 +126,13 @@ _kube_tmux_get_context_ns() {
     fi
   fi
 
-  KUBE_TMUX_CONTEXT="$(${KUBE_TMUX_BINARY} config current-context 2>/dev/null)"
+  KUBE_TMUX_CONTEXT="$(${KUBE_TMUX_CONFIG} ${KUBE_TMUX_BINARY} config current-context 2>/dev/null)"
   if [[ -z "${KUBE_TMUX_CONTEXT}" ]]; then
     KUBE_TMUX_CONTEXT="N/A"
     KUBE_TMUX_NAMESPACE="N/A"
     return
   elif [[ "${KUBE_TMUX_NS_ENABLE}" == true ]]; then
-    KUBE_TMUX_NAMESPACE="$(${KUBE_TMUX_BINARY} config view --minify --output 'jsonpath={..namespace}' 2>/dev/null)"
+    KUBE_TMUX_NAMESPACE="$(${KUBE_TMUX_CONFIG} ${KUBE_TMUX_BINARY} config view --minify --output 'jsonpath={..namespace}' 2>/dev/null)"
     # Set namespace to 'default' if it is not defined
     KUBE_TMUX_NAMESPACE="${KUBE_TMUX_NAMESPACE:-default}"
   fi
@@ -133,9 +144,7 @@ kube_tmux() {
   local KUBE_TMUX
 
   # Symbol
-  if [[ "${KUBE_TMUX_SYMBOL_ENABLE}" == true ]]; then
-    KUBE_TMUX+="#[fg=blue]$(_kube_tmux_symbol)#[fg=colour${1}]"
-  fi
+  KUBE_TMUX+="#[fg=blue]$(_kube_tmux_symbol)#[fg=colour${1}]"
 
   # Context
   KUBE_TMUX+="#[fg=${2}]${KUBE_TMUX_CONTEXT}"
